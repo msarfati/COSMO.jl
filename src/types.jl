@@ -158,16 +158,20 @@ ProblemData(args...) = ProblemData{DefaultFloat}(args...)
 # -------------------------------------
 
 struct Variables{T}
-	x::Vector{T}
+	xdr::Vector{T}
+	x::SubArray
+	v::SubArray
 	s::SplitVector{T}
 	μ::Vector{T}
 
 	function Variables{T}(m::Int, n::Int, C::AbstractConvexSet{T}) where{T}
 		m == C.dim || throw(DimensionMismatch("set dimension is not m"))
-		x = zeros(T, n)
+		xdr = zeros(T, n + m)
+		x = view(xdr, 1:n)
+		v = view(xdr, n + 1: n + m)
 		s = SplitVector(zeros(T, m), C)
 		μ = zeros(T, m)
-		new(x, s, μ)
+		new(xdr, x, v, s, μ)
 	end
 end
 
@@ -191,6 +195,7 @@ mutable struct Workspace{T}
 	ρvec::Vector{T}
 	F::SuiteSparse.CHOLMOD.Factor{T}
 	M::SparseMatrixCSC{T}
+  accelerator::AbstractAccelerator{<: Real}
 	flags::Flags
 	Info::Info
 	times::ResultTimes{Float64} #Always 64 bit regardless of data type?
@@ -199,7 +204,7 @@ mutable struct Workspace{T}
 		p = ProblemData{T}()
 		sm = ScaleMatrices{T}()
 		vars = Variables{T}(1, 1, p.C)
-		return new(p, Settings(), sm, vars, zero(T), T[], ldlt(sparse(1.0I, 1, 1)), spzeros(0, 0), Flags(), Info([zero(T)]), ResultTimes())
+		return new(p, Settings(), sm, vars, zero(T), T[], ldlt(sparse(1.0I, 1, 1)), spzeros(0, 0), EmptyAccelerator{Float64}(), Flags(), Info([zero(T)]), ResultTimes())
 	end
 end
 Workspace(args...) = Workspace{DefaultFloat}(args...)

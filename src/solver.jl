@@ -1,6 +1,7 @@
 const LinsolveSubarray = SubArray{Float64,1,Vector{Float64},Tuple{UnitRange{Int64}},true}
 
-function admm_step!(x::Vector{Float64},
+function admm_step!(x::SubArray,
+	v::SubArray,
 	s::SplitVector{Float64},
 	μ::Vector{Float64},
 	ν::LinsolveSubarray,
@@ -17,6 +18,14 @@ function admm_step!(x::Vector{Float64},
 	m::Int64,
 	n::Int64,
 	set::CompositeConvexSet{Float64})
+
+	# Project onto cone
+	@. s = v
+	p_time = @elapsed project!(s, set)
+
+	# update dual variable μ
+	@. μ = ρ .* (v - s)
+
 	# linear solve
 	# Create right hand side for linear system
 	# deconstructed solution vector is ls = [x_tl(n+1); ν(n+1)]
@@ -24,18 +33,14 @@ function admm_step!(x::Vector{Float64},
 	@. ls[1:n] = σ * x - q
 	@. ls[(n + 1):end] = b - s + μ / ρ
 	sol .= F \ ls
+	@. s_tl = s - (ν + μ) / ρ
 
 	# Over relaxattion
 	@. x = α * x_tl + (1.0 - α) * x
-	@. s_tl = s - (ν + μ) / ρ
+
 	@. s_tl = α * s_tl + (1.0 - α) * s
-	@. s = s_tl + μ / ρ
+	@. v = s_tl + μ / ρ
 
-	# Project onto cone
-	p_time = @elapsed project!(s, set)
-
-	# update dual variable μ
-	@. μ = μ + ρ .* (s_tl - s)
 	return p_time
 end
 
@@ -89,11 +94,16 @@ function optimize!(ws::COSMO.Workspace)
 
 		num_iter+= 1
 
+		if num_iter > 1
+			COSMO.update_history!(ws.accelerator, ws.vars.x, ws.vars.x)
+			COSMO.accelerate!(ws.vars.x, ws.vars.x, ws.accelerator)
+		end
+
 		@. δx = ws.vars.x
 		@. δy = ws.vars.μ
 
 		ws.times.proj_time += admm_step!(
-			ws.vars.x, ws.vars.s, ws.vars.μ, ν,
+			ws.vars.x, ws.vars.v, ws.vars.s, ws.vars.μ, ν,
 			x_tl, s_tl, ls, sol,
 			ws.F, ws.p.q, ws.p.b, ws.ρvec,
 			settings.alpha, settings.sigma,

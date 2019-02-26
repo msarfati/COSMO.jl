@@ -12,6 +12,7 @@ const DefaultInt   = Int64
 
 include("./algebra.jl")
 include("./projections.jl")
+include("./acceleration.jl")
 include("./settings.jl")            # TODO: unmodified - revisit
 include("./types.jl")               # some types still need tidying
 include("./constraint.jl")          # TODO: unmodified - revisit

@@ -1,5 +1,5 @@
 """
-	assemble!(model, P, q, constraint(s); [settings, x0, y0, s0])
+	assemble!(model, P, q, constraint(s); [settings, x0, y0, s0, accelerator])
 
 Assembles a `COSMO.Model` with a cost function defind by `P` and `q`, and a number of `constraints`.
 
@@ -12,6 +12,7 @@ s.t.  Ax + b ∈ C
 `constraints` is a `COSMO.Constraint` or an array of `COSMO.Constraint` objects that are used to describe the constraints on `x`.
 
 ---
+<<<<<<< Updated upstream
 The optional keyword argument `settings` can be used to pass custom solver settings:
 
 ```julia
@@ -25,12 +26,13 @@ The optional keyword arguments `x0`, `s0`, and `y0` can be used to provide the s
 x_0 = [1.0; 5.0; 3.0]
 COSMO.assemble!(model, P, q, constraints, x0 = x_0)
 ```
-
+---
+The optional keyword arguments `accelerator` can be used to pass an accelerator scheme to the solver.
 """
 function assemble!(model::Model{T},
 	P::AbstractMatrix{T},
 	q::AbstractVector{T},
-	constraints::Union{Constraint{T},Vector{Constraint{T}}}; settings::COSMO.Settings = COSMO.Settings(),
+	constraints::Union{Constraint{T},Vector{Constraint{T}}}; settings::COSMO.Settings = COSMO.Settings(), accelerator = COSMO.EmptyAccelerator{T}(),
 	x0::Union{Vector{T}, Nothing} = nothing, y0::Union{Vector{T}, Nothing} = nothing, s0::Union{Vector{T}, Nothing} = nothing) where{ T<: AbstractFloat}
 
 	# convert inputs
@@ -66,8 +68,10 @@ function assemble!(model::Model{T},
 
 	# save the convex sets inside the model as a composite set
 	model.p.C = CompositeConvexSet(map( x-> x.convex_set, constraints))
-	model.settings = settings
 	model.vars = Variables{T}(m, n, model.p.C)
+
+	model.settings = settings
+	model.accelerator = accelerator
 
 	# if user provided (full) warm starting variables, update model
 	x0 != nothing && warm_start_primal!(model, x0)
@@ -114,7 +118,7 @@ function empty_model!(model::COSMO.Model{T}) where {T}
 end
 
 
-function _warm_start!(z::Vector{T}, z0::Vector{T}, ind::Union{UnitRange{Int64}, Nothing}) where {T}
+function _warm_start!(z::Union{Vector{T}, SubArray{T}}, z0::Vector{T}, ind::Union{UnitRange{Int64}, Nothing}) where {T}
 		ind == nothing && (ind = 1:length(z))
 		length(ind) != length(z0) && throw(DimensionMismatch("Dimension of warm starting vector doesn't match the length of index range ind."))
 		z[ind] = z0
@@ -150,7 +154,7 @@ warm_start_dual!(model::COSMO.Model{T}, y0::Vector{T}) where {T} = warm_start_sl
 warm_start_dual!(model::COSMO.Model{T}, y0::Real, ind::Int64) where {T} = (model.vars.μ[ind] = -y0)
 
 """
-	set!(model, P, q, A, b, convex_sets, [settings])
+	set!(model, P, q, A, b, convex_sets, [settings, accelerator])
 
 Sets model data directly based on provided fields.
 """
@@ -159,7 +163,7 @@ function set!(model::COSMO.Model,
 	q::AbstractVector{<:Real},
 	A::AbstractMatrix{<:Real},
 	b::AbstractVector{<:Real},
-	convex_sets::Vector{<: COSMO.AbstractConvexSet{T}}, settings::COSMO.Settings = COSMO.Settings()) where{T}
+	convex_sets::Vector{<: COSMO.AbstractConvexSet{T}}, settings::COSMO.Settings = COSMO.Settings(), accelerator = COSMO.EmptyAccelerator{T}()) where{T}
 
 	check_dimensions(P, q, A, b)
 
@@ -181,6 +185,7 @@ function set!(model::COSMO.Model,
 	model.p.C = CompositeConvexSet(convex_sets)
 	model.vars = Variables{T}(m, n, model.p.C)
  	model.settings = settings
+ 	model.accelerator = accelerator
 	nothing
 end
 

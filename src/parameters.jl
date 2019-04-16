@@ -1,6 +1,6 @@
 # set initial values of rhoVec
 function set_rho_vec!(ws::COSMO.Workspace)
-	m = ws.p.model_size[1]
+	m = ws.p.m
 	# nEQ = p.K.f
 	# nINEQ = p.m - p.K.f
 	ws.ρ = ws.settings.rho

@@ -51,7 +51,8 @@ function assemble!(model::Model{T},
 	n = length(q)
 	m = sum(map( x-> x.dim, map( x-> x.convex_set, constraints)))
 
-	model.p.model_size = [m;n]
+	model.p.m = m
+	model.p.n = n
 
 	model.p.A = spzeros(Float64, m, n)
 	model.p.b = spzeros(Float64, m)
@@ -180,7 +181,8 @@ function set!(model::COSMO.Model,
 	model.p.q = q_c
 	model.p.A = A_c
 	model.p.b = b_c
-	model.p.model_size = [m; n]
+	model.p.m = m
+	model.p.n = n
 	model.p.C = CompositeConvexSet(convex_sets)
 	model.p.C = CompositeConvexSet(convex_sets)
 	model.vars = Variables{T}(m, n, model.p.C)

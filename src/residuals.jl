@@ -1,5 +1,4 @@
 function calculate_residuals(ws::COSMO.Workspace,  IGNORESCALING_FLAG::Bool = false)
-
 	if (ws.settings.scaling != 0 && !IGNORESCALING_FLAG)
 		r_prim = norm(ws.sm.Einv * (ws.p.A * ws.vars.x + ws.vars.s - ws.p.b), Inf)
 		# ∇f0 + ∑ νi ∇hi(x*) == 0 condition
@@ -9,9 +8,15 @@ function calculate_residuals(ws::COSMO.Workspace,  IGNORESCALING_FLAG::Bool = fa
 		r_prim = norm(ws.p.A * ws.vars.x + ws.vars.s - ws.p.b, Inf)
 		r_dual = norm(ws.p.P * ws.vars.x + ws.p.q - ws.p.A' * ws.vars.μ, Inf)
 	end
-	# FIXME: Why is it -A'μ ?
-	return r_prim,r_dual
+	return r_prim, r_dual
 end
+
+function calculate_residuals!(ws::COSMO.Workspace, IGNORESCALING_FLAG::Bool = false)
+	r_prim, r_dual = calculate_residuals(ws, IGNORESCALING_FLAG)
+	ws.r_prim = r_prim
+	ws.r_dual = r_dual
+end
+
 
 function max_res_component_norm(ws::COSMO.Workspace, IGNORESCALING_FLAG::Bool = false)
 	if (ws.settings.scaling != 0 && !IGNORESCALING_FLAG)
@@ -25,7 +30,9 @@ function max_res_component_norm(ws::COSMO.Workspace, IGNORESCALING_FLAG::Bool = 
 	return max_norm_prim, max_norm_dual
 end
 
-function has_converged(ws::COSMO.Workspace, r_prim::Float64, r_dual::Float64)
+function has_converged(ws::COSMO.Workspace)
+	r_prim = ws.r_prim
+	r_dual = ws.r_dual
 	max_norm_prim, max_norm_dual = max_res_component_norm(ws)
 	settings = ws.settings
 	ϵ_prim = settings.eps_abs + settings.eps_rel * max_norm_prim

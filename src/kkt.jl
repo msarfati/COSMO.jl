@@ -6,8 +6,8 @@ function factor_KKT!(ws::COSMO.Workspace)
 		# KKT matrix
 		ws.M = [p.P + settings.sigma*I SparseMatrixCSC(p.A'); p.A -I]
 	end
-	n = p.model_size[2]
-	m = p.model_size[1]
+	n = p.n
+	m = p.m
 	@inbounds @simd for i = (n + 1):(n + m)
 		ws.M[i, i] = -1.0 / ws.ρvec[i - n]
 	end

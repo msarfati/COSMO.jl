@@ -7,6 +7,7 @@ mutable struct AndersonAccelerator{T} <: AbstractAccelerator{T}
   mem::Int64
   dim::Int64
   iter::Int64
+  fail_counter::Int64
   x_last::AbstractVector{T}
   g_last::AbstractVector{T}
   f::AbstractVector{T}
@@ -18,18 +19,18 @@ mutable struct AndersonAccelerator{T} <: AbstractAccelerator{T}
   M::AbstractMatrix{T}
 
   function AndersonAccelerator{T}() where {T <: Real}
-    new(true, 0, 0, 0, zeros(T, 1), zeros(T, 1), zeros(T, 1),  zeros(T, 1), zeros(T, 1), zeros(T, 1, 1), zeros(T, 1, 1), zeros(T, 1, 1), zeros(T, 1, 1))
+    new(true, 0, 0, 0, 0, zeros(T, 1), zeros(T, 1), zeros(T, 1),  zeros(T, 1), zeros(T, 1), zeros(T, 1, 1), zeros(T, 1, 1), zeros(T, 1, 1), zeros(T, 1, 1))
   end
 
-  function AndersonAccelerator{T}(dim::Int64, mem::Int64 = 10, is_type1::Bool = true) where {T <: Real}
+  function AndersonAccelerator{T}(dim::Int64; mem::Int64 = 10, is_type1::Bool = true) where {T <: Real}
     mem <= 0 && throw(DomainError(mem, "Memory has to be a positive integer."))
     dim <= 0 && throw(DomainError(dim, "Dimension has to be a positive integer."))
-    new(is_type1, mem, dim, 0, zeros(T,dim), zeros(T, dim), zeros(T, dim),  zeros(T, dim), zeros(T, mem), zeros(T, dim, mem), zeros(T, dim, mem), zeros(T, dim, mem), zeros(T, mem, mem))
+    new(is_type1, mem, dim, 0, 0, zeros(T,dim), zeros(T, dim), zeros(T, dim),  zeros(T, dim), zeros(T, mem), zeros(T, dim, mem), zeros(T, dim, mem), zeros(T, dim, mem), zeros(T, mem, mem))
   end
 
 end
 
-function update_history!(aa::AbstractAccelerator{T}, x::AbstractVector{T}, g::AbstractVector{T}) where {T <: Real}
+function update_history!(aa::AbstractAccelerator{T}, g::AbstractVector{T}, x::AbstractVector{T}) where {T <: Real}
   j = (aa.iter % aa.mem) + 1
 
   # compute residual
@@ -91,6 +92,7 @@ function accelerate!(g::AbstractVector{T}, x::AbstractVector{T}, aa::AndersonAcc
 
   if (info < 0 || norm(aa.eta, 2) > 1e4)
     @warn("Acceleration failed at aa.iter: $(aa.iter)")
+    aa.fail_counter += 1
     return false
   else
      g[:] = g - G * eta
@@ -98,6 +100,9 @@ function accelerate!(g::AbstractVector{T}, x::AbstractVector{T}, aa::AndersonAcc
   end
 end
 
+function print_failure_rate(aa::AndersonAccelerator{<: Real})
+  println("AA - Failure rate: Failed = $(aa.fail_counter), Total iter = $(aa.iter - 1) ($(round(aa.fail_counter / (aa.iter - 1) * 100, digits = 2)) %)")
+end
 
 struct EmptyAccelerator{T} <: AbstractAccelerator{T} end
 

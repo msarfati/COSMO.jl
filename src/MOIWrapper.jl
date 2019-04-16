@@ -510,7 +510,7 @@ function warm_start_primal!(dest, src::MOI.ModelLike, idxmap)
         end
 
         # if all components of the primal variable x are provided, warm start s = b - Ax too
-        if len == dest.inner.p.model_size[2]
+        if len == dest.inner.p.n
             s0 = dest.inner.p.b - dest.inner.p.A * dest.inner.vars.x
             COSMO.warm_start_slack!(dest.inner, s0)
         end

@@ -86,8 +86,8 @@ function Base.show(io::IO, obj::Result)
 	obj.times.iter_time != NaN && print("Avg Iter Time: $(round.((obj.times.iter_time / obj.iter) * 1000, digits = 2))ms")
 end
 
-struct Info{T <: AbstractFloat}
-	rho_updates::Vector{T}
+struct Info
+	rho_updates::Vector{Float64}
 end
 
 # -------------------------------------
@@ -138,8 +138,8 @@ mutable struct ProblemData{T<:Real}
 	A::AbstractMatrix{T}
 	b::Vector{T}
 	C::CompositeConvexSet{T}
-	model_size::Array{Integer,1}
-
+	m::Int64
+	n::Int64
 	function ProblemData{T}() where{T}
 		return new(
 			spzeros(T, 1, 1),             #P
@@ -147,7 +147,7 @@ mutable struct ProblemData{T<:Real}
 			spzeros(T, 1, 1),             #A
 			T[],                        #b
 			COSMO.CompositeConvexSet([COSMO.ZeroSet{T}(1)]),     #C
-			[0; 0])                 #model size
+			0, 0)                 #m, n
 	end
 end
 
@@ -159,19 +159,21 @@ ProblemData(args...) = ProblemData{DefaultFloat}(args...)
 
 struct Variables{T}
 	xdr::Vector{T}
+	xdr_prev::Vector{T}
 	x::SubArray
-	v::SubArray
+	z::SubArray
 	s::SplitVector{T}
 	μ::Vector{T}
 
 	function Variables{T}(m::Int, n::Int, C::AbstractConvexSet{T}) where{T}
 		m == C.dim || throw(DimensionMismatch("set dimension is not m"))
 		xdr = zeros(T, n + m)
+		xdr_prev = zeros(T, n + m)
 		x = view(xdr, 1:n)
-		v = view(xdr, n + 1: n + m)
+		z = view(xdr, n + 1: n + m)
 		s = SplitVector(zeros(T, m), C)
 		μ = zeros(T, m)
-		new(xdr, x, v, s, μ)
+		new(xdr, xdr_prev, x, z, s, μ)
 	end
 end
 
@@ -195,6 +197,8 @@ mutable struct Workspace{T}
 	ρvec::Vector{T}
 	F::SuiteSparse.CHOLMOD.Factor{T}
 	M::SparseMatrixCSC{T}
+	r_prim::Float64
+	r_dual::Float64
   accelerator::AbstractAccelerator{<: Real}
 	flags::Flags
 	Info::Info
@@ -204,7 +208,7 @@ mutable struct Workspace{T}
 		p = ProblemData{T}()
 		sm = ScaleMatrices{T}()
 		vars = Variables{T}(1, 1, p.C)
-		return new(p, Settings(), sm, vars, zero(T), T[], ldlt(sparse(1.0I, 1, 1)), spzeros(0, 0), EmptyAccelerator{Float64}(), Flags(), Info([zero(T)]), ResultTimes())
+		return new(p, Settings(), sm, vars, zero(T), T[], ldlt(sparse(1.0I, 1, 1)), spzeros(0, 0), Inf, Inf, EmptyAccelerator{Float64}(), Flags(), Info(Float64[]), ResultTimes())
 	end
 end
 Workspace(args...) = Workspace{DefaultFloat}(args...)

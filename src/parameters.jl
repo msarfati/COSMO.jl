@@ -35,6 +35,9 @@ function adapt_rho_vec!(ws::COSMO.Workspace)
 	# only update rho if significantly different than current rho
 	if (new_rho > settings.adaptive_rho_tolerance * ws.ρ) || (new_rho < (1 ./ settings.adaptive_rho_tolerance) * ws.ρ)
 		update_rho_vec!(new_rho, ws)
+
+		# if rho is updated the monotone operator of the ADMM changes, thus reset the accelerator object
+		empty_history!(ws.accelerator)
 	end
 	return nothing
 end

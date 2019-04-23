@@ -30,6 +30,20 @@ mutable struct AndersonAccelerator{T} <: AbstractAccelerator{T}
 
 end
 
+function empty_history!(aa::AndersonAccelerator{T}) where {T <: Real}
+  aa.F .= 0;
+  aa.X .= 0;
+  aa.G .= 0;
+
+  aa.f .= 0;
+  aa.f_last .= 0;
+  aa.g_last .= 0;
+  aa.x_last .= 0;
+  aa.eta .= 0;
+
+  aa.iter = 0
+end
+
 function update_history!(aa::AbstractAccelerator{T}, g::AbstractVector{T}, x::AbstractVector{T}) where {T <: Real}
   j = (aa.iter % aa.mem) + 1
 
@@ -91,7 +105,7 @@ function accelerate!(g::AbstractVector{T}, x::AbstractVector{T}, aa::AndersonAcc
   info = _gesv!(M, eta)
 
   if (info < 0 || norm(aa.eta, 2) > 1e4)
-    @warn("Acceleration failed at aa.iter: $(aa.iter)")
+    #@warn("Acceleration failed at aa.iter: $(aa.iter)")
     aa.fail_counter += 1
     return false
   else
@@ -107,6 +121,10 @@ end
 struct EmptyAccelerator{T} <: AbstractAccelerator{T} end
 
 function update_history!(ea::EmptyAccelerator{<: Real}, x::AbstractVector{T}, g::AbstractVector{T}) where {T <: Real}
+  return nothing
+end
+
+function empty_history!(ea::EmptyAccelerator{<: Real}) where {T <: Real}
   return nothing
 end
 

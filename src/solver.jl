@@ -7,6 +7,8 @@ function admm_step!(ws, iter, ν::LinsolveSubarray, x_tl::LinsolveSubarray, s_tl
 		calculate_residuals!(ws)
 	end
 
+
+
 	# adapt rhoVec if enabled
 	if ws.settings.adaptive_rho && (mod(iter, ws.settings.adaptive_rho_interval + 1) == 0) && (ws.settings.adaptive_rho_interval + 1 > 0)
 		adapt_rho_vec!(ws)
@@ -83,11 +85,12 @@ function optimize!(ws::COSMO.Workspace)
 	status = :Unsolved
 	cost = Inf
 
+
 	# print information about settings to the screen
 	settings.verbose && print_header(ws)
 	time_limit_start = time()
 
-	#residual_data = zeros(ws.settings.max_iter, 2)
+	residual_data = zeros(ws.settings.max_iter, 2)
 	#preallocate arrays
 	m = ws.p.m
 	n = ws.p.n
@@ -99,7 +102,7 @@ function optimize!(ws::COSMO.Workspace)
 	sol = zeros(n + m)
 	x_tl = view(sol, 1:n) # i.e. xTilde
 	ν = view(sol, (n + 1):(n + m))
-	residual_data = zeros(settings.max_iter, 2)
+
 	settings.verbose_timing && (iter_start = time())
 
 	for iter = 1:settings.max_iter
@@ -192,7 +195,13 @@ function optimize!(ws::COSMO.Workspace)
 	# create result object
 	res_info = ResultInfo(ws.r_prim, ws.r_dual)
 	y = -ws.vars.μ
-	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times), residual_data
+
+	aa_fail = 0
+	if typeof(ws.accelerator) <: AndersonAccelerator{Float64}
+		aa_fail = ws.accelerator.fail_counter
+	end
+
+	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times), residual_data, aa_fail
 
 end
 

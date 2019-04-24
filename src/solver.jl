@@ -118,12 +118,17 @@ function optimize!(ws::COSMO.Workspace)
 		@. δx = ws.vars.x
 		@. δy = ws.vars.μ
 
-		ws.times.proj_time += admm_step!(ws, iter, ν, x_tl, s_tl, ls, sol);
+
+		ws.times.proj_time += admm_step_A!(ws.vars.z, ws.vars.s, ws.vars.μ, ws.ρvec, ws.p.C)
 
 		# compute deltas for infeasibility detection
 		@. δx = ws.vars.x - δx
 		@. δy = -ws.vars.μ + δy
 
+
+		if mod(iter, ws.settings.check_termination )  == 0
+			calculate_residuals!(ws)
+		end
 
 		 residual_data[num_iter, 1] = ws.r_prim
 		 residual_data[num_iter, 2] = ws.r_dual
@@ -168,6 +173,15 @@ function optimize!(ws::COSMO.Workspace)
 			status = :Time_limit_reached
 			break
 		end
+
+
+		# adapt rhoVec if enabled
+		if ws.settings.adaptive_rho && (mod(iter, ws.settings.adaptive_rho_interval + 1) == 0) && (ws.settings.adaptive_rho_interval + 1 > 0)
+			adapt_rho_vec!(ws)
+		end
+
+		admm_step_B!(ws.vars.x, ws.vars.z, ws.vars.s, ws.vars.μ, ν, x_tl, s_tl, ls, sol, ws.F, ws.p.q, ws.p.b, ws.ρvec, ws.settings.alpha, ws.settings.sigma, ws.p.n)
+
 
 	end #END-ADMM-MAIN-LOOP
 

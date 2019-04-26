@@ -87,7 +87,7 @@ function Base.show(io::IO, obj::Result)
 end
 
 struct Info
-	rho_updates::Vector{Float64}
+	rho_updates::AbstractVector
 end
 
 # -------------------------------------
@@ -179,6 +179,30 @@ end
 
 Variables(args...) = Variables{DefaultFloat}(args...)
 
+mutable struct IterateHistory
+	x_data::AbstractMatrix
+	s_data::AbstractMatrix
+	y_data::AbstractMatrix
+	z_data::AbstractMatrix
+	xdr_data::AbstractMatrix
+	r_prim_data::AbstractVector
+	r_dual_data::AbstractVector
+
+	function IterateHistory(m, n)
+		new(zeros(n, 0), zeros(m, 0), zeros(m, 0), zeros(m, 0), zeros(m + n, 0), Float64[], Float64[])
+	end
+end
+
+function update_iterate_history!(history::IterateHistory, x, s, y, z, xdr, r_prim, r_dual)
+	history.x_data = hcat(history.x_data, x)
+	history.s_data = hcat(history.s_data, s)
+	history.y_data = hcat(history.y_data, y)
+	history.z_data = hcat(history.z_data, z)
+	history.xdr_data = hcat(history.xdr_data, xdr)
+	push!(history.r_prim_data, r_prim)
+	push!(history.r_dual_data, r_dual)
+
+end
 
 # -------------------------------------
 # Top level container for all solver data
@@ -208,7 +232,7 @@ mutable struct Workspace{T}
 		p = ProblemData{T}()
 		sm = ScaleMatrices{T}()
 		vars = Variables{T}(1, 1, p.C)
-		return new(p, Settings(), sm, vars, zero(T), T[], ldlt(sparse(1.0I, 1, 1)), spzeros(0, 0), Inf, Inf, EmptyAccelerator{Float64}(), Flags(), Info(Float64[]), ResultTimes())
+		return new(p, Settings(), sm, vars, zero(T), T[], ldlt(sparse(1.0I, 1, 1)), spzeros(0, 0), Inf, Inf, EmptyAccelerator{Float64}(), Flags(), Info([]), ResultTimes())
 	end
 end
 Workspace(args...) = Workspace{DefaultFloat}(args...)

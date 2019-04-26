@@ -14,13 +14,13 @@ function set_rho_vec!(ws::COSMO.Workspace)
 			ws.ρvec[rows] *= 1e3
 		end
 	end
-	push!(ws.Info.rho_updates, ws.ρ)
+ 	push!(ws.Info.rho_updates, [1 ws.ρ])
 	return nothing
 end
 
 
 # adapt rhoVec based on residual ratio
-function adapt_rho_vec!(ws::COSMO.Workspace)
+function adapt_rho_vec!(ws::COSMO.Workspace, iter::Int64)
 	settings = ws.settings
 	# compute normalized residuals based on the working variables (dont unscale)
 	ignore_scaling = true
@@ -34,7 +34,7 @@ function adapt_rho_vec!(ws::COSMO.Workspace)
 	new_rho = min(max(new_rho, settings.RHO_MIN), settings.RHO_MAX)
 	# only update rho if significantly different than current rho
 	if (new_rho > settings.adaptive_rho_tolerance * ws.ρ) || (new_rho < (1 ./ settings.adaptive_rho_tolerance) * ws.ρ)
-		update_rho_vec!(new_rho, ws)
+		update_rho_vec!(new_rho, ws, iter::Int64)
 
 		# if rho is updated the monotone operator of the ADMM changes, thus reset the accelerator object
 		empty_history!(ws.accelerator)
@@ -42,7 +42,7 @@ function adapt_rho_vec!(ws::COSMO.Workspace)
 	return nothing
 end
 
-function update_rho_vec!(new_rho::Float64, ws::COSMO.Workspace)
+function update_rho_vec!(new_rho::Float64, ws::COSMO.Workspace, iter::Int64)
 
 	ws.ρ     = new_rho
 	ws.ρvec .= new_rho
@@ -57,7 +57,7 @@ function update_rho_vec!(new_rho::Float64, ws::COSMO.Workspace)
 	end
 
 	# log rho updates to info variable
-	push!(ws.Info.rho_updates, new_rho)
+ 	push!(ws.Info.rho_updates, [iter new_rho])
 	factor_KKT!(ws)
 	return nothing
 end

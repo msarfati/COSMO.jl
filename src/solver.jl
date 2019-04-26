@@ -90,7 +90,10 @@ function optimize!(ws::COSMO.Workspace)
 	settings.verbose && print_header(ws)
 	time_limit_start = time()
 
-	residual_data = zeros(ws.settings.max_iter, 2)
+	iter_history = IterateHistory(ws.p.m ,ws.p.n)
+
+	update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.z, ws.vars.xdr, ws.r_prim, ws.r_dual)
+
 	#preallocate arrays
 	m = ws.p.m
 	n = ws.p.n
@@ -130,8 +133,7 @@ function optimize!(ws::COSMO.Workspace)
 			calculate_residuals!(ws)
 		end
 
-		 residual_data[num_iter, 1] = ws.r_prim
-		 residual_data[num_iter, 2] = ws.r_dual
+		update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.z, ws.vars.xdr, ws.r_prim, ws.r_dual)
 
 		# check convergence with residuals every {settings.checkIteration} steps
 		if mod(iter, settings.check_termination) == 0
@@ -177,7 +179,7 @@ function optimize!(ws::COSMO.Workspace)
 
 		# adapt rhoVec if enabled
 		if ws.settings.adaptive_rho && (mod(iter, ws.settings.adaptive_rho_interval + 1) == 0) && (ws.settings.adaptive_rho_interval + 1 > 0)
-			adapt_rho_vec!(ws)
+			adapt_rho_vec!(ws, iter)
 		end
 
 		admm_step_B!(ws.vars.x, ws.vars.z, ws.vars.s, ws.vars.μ, ν, x_tl, s_tl, ls, sol, ws.F, ws.p.q, ws.p.b, ws.ρvec, ws.settings.alpha, ws.settings.sigma, ws.p.n)
@@ -215,7 +217,7 @@ function optimize!(ws::COSMO.Workspace)
 		aa_fail = ws.accelerator.fail_counter
 	end
 
-	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times), residual_data, aa_fail
+	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times), iter_history, ws, aa_fail
 
 end
 

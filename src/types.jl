@@ -161,19 +161,17 @@ struct Variables{T}
 	xdr::Vector{T}
 	xdr_prev::Vector{T}
 	x::SubArray
-	z::SubArray
 	s::SplitVector{T}
-	μ::Vector{T}
+	μ::SubArray
 
 	function Variables{T}(m::Int, n::Int, C::AbstractConvexSet{T}) where{T}
 		m == C.dim || throw(DimensionMismatch("set dimension is not m"))
-		xdr = zeros(T, n + m)
-		xdr_prev = zeros(T, n + m)
+		xdr = zeros(T, n + 2 * m)
+		xdr_prev = zeros(T, n + 2 * m)
 		x = view(xdr, 1:n)
-		z = view(xdr, n + 1: n + m)
 		s = SplitVector(zeros(T, m), C)
-		μ = zeros(T, m)
-		new(xdr, xdr_prev, x, z, s, μ)
+		μ = view(xdr, n+m+1:n+m+m)
+		new(xdr, xdr_prev, x, s, μ)
 	end
 end
 
@@ -183,21 +181,19 @@ mutable struct IterateHistory
 	x_data::AbstractMatrix
 	s_data::AbstractMatrix
 	y_data::AbstractMatrix
-	z_data::AbstractMatrix
 	xdr_data::AbstractMatrix
 	r_prim_data::AbstractVector
 	r_dual_data::AbstractVector
 
 	function IterateHistory(m, n)
-		new(zeros(n, 0), zeros(m, 0), zeros(m, 0), zeros(m, 0), zeros(m + n, 0), Float64[], Float64[])
+		new(zeros(n, 0), zeros(m, 0), zeros(m, 0), zeros(2 * m + n, 0), Float64[], Float64[])
 	end
 end
 
-function update_iterate_history!(history::IterateHistory, x, s, y, z, xdr, r_prim, r_dual)
+function update_iterate_history!(history::IterateHistory, x, s, y, xdr, r_prim, r_dual)
 	history.x_data = hcat(history.x_data, x)
 	history.s_data = hcat(history.s_data, s)
 	history.y_data = hcat(history.y_data, y)
-	history.z_data = hcat(history.z_data, z)
 	history.xdr_data = hcat(history.xdr_data, xdr)
 	push!(history.r_prim_data, r_prim)
 	push!(history.r_dual_data, r_dual)

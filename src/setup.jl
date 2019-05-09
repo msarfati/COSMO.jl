@@ -19,9 +19,9 @@ function set_accelerator!(ws::COSMO.Workspace)
     if ws.settings.accelerator == :empty
       nothing
     elseif ws.settings.accelerator == :anderson1
-      ws.accelerator = AndersonAccelerator{Float64}(ws.p.m + ws.p.n, is_type1 = true)
+      ws.accelerator = AndersonAccelerator{Float64}(2 * ws.p.m + ws.p.n, is_type1 = true)
     elseif ws.settings.accelerator == :anderson2
-      ws.accelerator = AndersonAccelerator{Float64}(ws.p.m + ws.p.n, is_type1 = false)
+      ws.accelerator = AndersonAccelerator{Float64}(2 * ws.p.m + ws.p.n, is_type1 = false)
     else
       @warn("Your specification for settings.accelerator = $(ws.settings.accelerator) is unknown. Continue without acceleration.")
       ws.accelerator = EmptyAccelerator{Float64}()

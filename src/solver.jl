@@ -1,39 +1,66 @@
 const LinsolveSubarray = SubArray{Float64,1,Vector{Float64},Tuple{UnitRange{Int64}},true}
 
-function admm_step!(ws, iter, ν::LinsolveSubarray, x_tl::LinsolveSubarray, s_tl::Vector{Float64}, ls::Vector{Float64}, sol::Vector{Float64})
+# function admm_step!(ws, iter, ν::LinsolveSubarray, x_tl::LinsolveSubarray, s_tl::Vector{Float64}, ls::Vector{Float64}, sol::Vector{Float64})
 
-	p_time = admm_step_A!(ws.vars.z, ws.vars.s, ws.vars.μ, ws.ρvec, ws.p.C)
-	if mod(iter, ws.settings.check_termination )  == 0
-		calculate_residuals!(ws)
-	end
-
-
-
-	# adapt rhoVec if enabled
-	if ws.settings.adaptive_rho && (mod(iter, ws.settings.adaptive_rho_interval + 1) == 0) && (ws.settings.adaptive_rho_interval + 1 > 0)
-		adapt_rho_vec!(ws)
-	end
-
-	admm_step_B!(ws.vars.x, ws.vars.z, ws.vars.s, ws.vars.μ, ν, x_tl, s_tl, ls, sol, ws.F, ws.p.q, ws.p.b, ws.ρvec, ws.settings.alpha, ws.settings.sigma, ws.p.n)
-
-	return p_time
-end
+# 	p_time = admm_step_A!(ws.vars.z, ws.vars.s, ws.vars.μ, ws.ρvec, ws.p.C)
+# 	if mod(iter, ws.settings.check_termination )  == 0
+# 		calculate_residuals!(ws)
+# 	end
 
 
-function admm_step_A!(z::SubArray, s::SplitVector{Float64}, μ::Vector{Float64}, ρ::Vector{Float64},set::CompositeConvexSet{Float64})
-	# Project onto cone
-	@. s = z
-	p_time = @elapsed project!(s, set)
 
-	# update dual variable μ
-	@. μ = ρ .* (z - s)
-	return p_time
-	end
+# 	# adapt rhoVec if enabled
+# 	if ws.settings.adaptive_rho && (mod(iter, ws.settings.adaptive_rho_interval + 1) == 0) && (ws.settings.adaptive_rho_interval + 1 > 0)
+# 		adapt_rho_vec!(ws)
+# 	end
 
-function admm_step_B!(x::SubArray,
-	z::SubArray,
+# 	admm_step_B!(ws.vars.x, ws.vars.z, ws.vars.s, ws.vars.μ, ν, x_tl, s_tl, ls, sol, ws.F, ws.p.q, ws.p.b, ws.ρvec, ws.settings.alpha, ws.settings.sigma, ws.p.n)
+
+# 	return p_time
+# end
+
+
+# function admm_step_A!(z::SubArray, s::SplitVector{Float64}, μ::Vector{Float64}, ρ::Vector{Float64},set::CompositeConvexSet{Float64})
+# 	# Project onto cone
+# 	@. s = z
+# 	p_time = @elapsed project!(s, set)
+
+# 	# update dual variable μ
+# 	@. μ = ρ .* (z - s)
+# 	return p_time
+# 	end
+
+# function admm_step_B!(x::SubArray,
+# 	z::SubArray,
+# 	s::SplitVector{Float64},
+# 	μ::Vector{Float64},
+# 	ν::LinsolveSubarray,
+# 	x_tl::LinsolveSubarray,
+# 	s_tl::Vector{Float64},
+# 	ls::Vector{Float64},
+# 	sol::Vector{Float64},
+# 	F,
+# 	q::Vector{Float64},
+# 	b::Vector{Float64},
+# 	ρ::Vector{Float64},
+# 	α::Float64,
+# 	σ::Float64,
+# 	n::Int64)
+
+# 	@. ls[1:n] = σ * x - q
+# 	@. ls[(n + 1):end] = b - s + μ / ρ
+# 	sol .= F \ ls
+# 	@. s_tl = s - (ν + μ) / ρ
+
+# 	# Over relaxation
+# 	@. x = α * x_tl + (1.0 - α) * x
+# 	@. s_tl = α * s_tl + (1.0 - α) * s
+# 	@. z = s_tl + μ / ρ
+# end
+
+function admm_step!(x::SubArray,
 	s::SplitVector{Float64},
-	μ::Vector{Float64},
+	μ::SubArray,
 	ν::LinsolveSubarray,
 	x_tl::LinsolveSubarray,
 	s_tl::Vector{Float64},
@@ -45,17 +72,29 @@ function admm_step_B!(x::SubArray,
 	ρ::Vector{Float64},
 	α::Float64,
 	σ::Float64,
-	n::Int64)
-
+	m::Int64,
+	n::Int64,
+	set::CompositeConvexSet{Float64})
+	# linear solve
+	# Create right hand side for linear system
+	# deconstructed solution vector is ls = [x_tl(n+1); ν(n+1)]
+	# x_tl and ν are automatically updated, since they are views on sol
 	@. ls[1:n] = σ * x - q
 	@. ls[(n + 1):end] = b - s + μ / ρ
 	sol .= F \ ls
-	@. s_tl = s - (ν + μ) / ρ
 
-	# Over relaxation
+	# Over relaxattion
 	@. x = α * x_tl + (1.0 - α) * x
+	@. s_tl = s - (ν + μ) / ρ
 	@. s_tl = α * s_tl + (1.0 - α) * s
-	@. z = s_tl + μ / ρ
+	@. s = s_tl + μ / ρ
+
+	# Project onto cone
+	p_time = @elapsed project!(s, set)
+
+	# update dual variable μ
+	@. μ = μ + ρ .* (s_tl - s)
+	return p_time
 end
 
 # SOLVER ROUTINE
@@ -90,9 +129,9 @@ function optimize!(ws::COSMO.Workspace)
 	settings.verbose && print_header(ws)
 	time_limit_start = time()
 
-	iter_history = IterateHistory(ws.p.m ,ws.p.n)
+	# iter_history = IterateHistory(ws.p.m ,ws.p.n)
 
-	update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.z, ws.vars.xdr, ws.r_prim, ws.r_dual)
+	# update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.xdr, ws.r_prim, ws.r_dual)
 
 	#preallocate arrays
 	m = ws.p.m
@@ -122,8 +161,13 @@ function optimize!(ws::COSMO.Workspace)
 		@. δy = ws.vars.μ
 
 
-		ws.times.proj_time += admm_step_A!(ws.vars.z, ws.vars.s, ws.vars.μ, ws.ρvec, ws.p.C)
-
+		ws.times.proj_time += admm_step!(
+			ws.vars.x, ws.vars.s, ws.vars.μ, ν,
+			x_tl, s_tl, ls, sol,
+			ws.F, ws.p.q, ws.p.b, ws.ρvec,
+			settings.alpha, settings.sigma,
+			m, n, ws.p.C);
+		@. ws.vars.xdr[n+1:n+m] = ws.vars.s.data
 		# compute deltas for infeasibility detection
 		@. δx = ws.vars.x - δx
 		@. δy = -ws.vars.μ + δy
@@ -133,7 +177,7 @@ function optimize!(ws::COSMO.Workspace)
 			calculate_residuals!(ws)
 		end
 
-		update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.z, ws.vars.xdr, ws.r_prim, ws.r_dual)
+		# update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.xdr, ws.r_prim, ws.r_dual)
 
 		# check convergence with residuals every {settings.checkIteration} steps
 		if mod(iter, settings.check_termination) == 0
@@ -182,9 +226,6 @@ function optimize!(ws::COSMO.Workspace)
 			adapt_rho_vec!(ws, iter)
 		end
 
-		admm_step_B!(ws.vars.x, ws.vars.z, ws.vars.s, ws.vars.μ, ν, x_tl, s_tl, ls, sol, ws.F, ws.p.q, ws.p.b, ws.ρvec, ws.settings.alpha, ws.settings.sigma, ws.p.n)
-
-
 	end #END-ADMM-MAIN-LOOP
 
 	settings.verbose_timing && (ws.times.iter_time = (time() - iter_start))
@@ -217,7 +258,7 @@ function optimize!(ws::COSMO.Workspace)
 		aa_fail = ws.accelerator.fail_counter
 	end
 
-	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times), iter_history, ws, aa_fail
+	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times), [1. 1.], sum(aa_fail)#, , ws, aa_fail
 
 end
 

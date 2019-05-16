@@ -58,9 +58,10 @@ const LinsolveSubarray = SubArray{Float64,1,Vector{Float64},Tuple{UnitRange{Int6
 # 	@. z = s_tl + μ / ρ
 # end
 
-function admm_step!(x::SubArray,
+function admm_step!(x::Vector{Float64},
 	s::SplitVector{Float64},
-	μ::SubArray,
+	μ::Vector{Float64},
+	v::Vector{Float64},
 	ν::LinsolveSubarray,
 	x_tl::LinsolveSubarray,
 	s_tl::Vector{Float64},
@@ -75,25 +76,35 @@ function admm_step!(x::SubArray,
 	m::Int64,
 	n::Int64,
 	set::CompositeConvexSet{Float64})
+
 	# linear solve
 	# Create right hand side for linear system
 	# deconstructed solution vector is ls = [x_tl(n+1); ν(n+1)]
 	# x_tl and ν are automatically updated, since they are views on sol
-	@. ls[1:n] = σ * x - q
-	@. ls[(n + 1):end] = b - s + μ / ρ
+	# ρ  = 0.1
+	v1 = view(v, 1:n)
+	v2 = view(v, n+1:n+m)
+	@. ls[1:n] = σ * v1 - q # or can it be ρ?????
+	@. ls[(n + 1):end] = b - v2
 	sol .= F \ ls
 
 	# Over relaxattion
-	@. x = α * x_tl + (1.0 - α) * x
-	@. s_tl = s - (ν + μ) / ρ
-	@. s_tl = α * s_tl + (1.0 - α) * s
-	@. s = s_tl + μ / ρ
+	@. x = 2 * x_tl - v1
+	@. s_tl = v2 - ν / ρ
+	@. s = 2 * s_tl - v2
 
 	# Project onto cone
 	p_time = @elapsed project!(s, set)
 
-	# update dual variable μ
-	@. μ = μ + ρ .* (s_tl - s)
+
+	# update dual variable v
+	@. v[1:n] = v[1:n] + 2 * α .* ( x - x_tl)
+	@. v[n+1:n+m] = v[n+1:n+m] + 2 * α .* ( s - s_tl)
+
+	# update original dual variable for s
+	@. μ = ρ* (s - v2 )
+
+
 	return p_time
 end
 
@@ -152,22 +163,21 @@ function optimize!(ws::COSMO.Workspace)
 		num_iter += 1
 
 		if num_iter > 2
-			COSMO.update_history!(ws.accelerator, ws.vars.xdr, ws.vars.xdr_prev)
-			COSMO.accelerate!(ws.vars.xdr, ws.vars.xdr_prev, ws.accelerator)
+			COSMO.update_history!(ws.accelerator, ws.vars.v, ws.vars.v_prev)
+			COSMO.accelerate!(ws.vars.v, ws.vars.v_prev, ws.accelerator)
 		end
 
-		@. ws.vars.xdr_prev = ws.vars.xdr
+		@. ws.vars.v_prev = ws.vars.v
 		@. δx = ws.vars.x
 		@. δy = ws.vars.μ
 
 
 		ws.times.proj_time += admm_step!(
-			ws.vars.x, ws.vars.s, ws.vars.μ, ν,
+			ws.vars.x, ws.vars.s, ws.vars.μ, ws.vars.v, ν,
 			x_tl, s_tl, ls, sol,
 			ws.F, ws.p.q, ws.p.b, ws.ρvec,
 			settings.alpha, settings.sigma,
 			m, n, ws.p.C);
-		@. ws.vars.xdr[n+1:n+m] = ws.vars.s.data
 		# compute deltas for infeasibility detection
 		@. δx = ws.vars.x - δx
 		@. δy = -ws.vars.μ + δy

@@ -18,7 +18,7 @@ ba = [u; -l]
 constraint1 = COSMO.Constraint(Aa, ba, COSMO.Nonnegatives)
 
 # define example problem
-settings = COSMO.Settings(verbose=true, eps_abs = 1e-4, eps_rel = 1e-4)
+settings = COSMO.Settings(verbose=true, alpha = 0.8, scaling = 10,adaptive_rho = true,eps_abs = 1e-4, eps_rel = 1e-4)
 
 
 model = COSMO.Model()

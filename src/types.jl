@@ -158,20 +158,20 @@ ProblemData(args...) = ProblemData{DefaultFloat}(args...)
 # -------------------------------------
 
 struct Variables{T}
-	xdr::Vector{T}
-	xdr_prev::Vector{T}
-	x::SubArray
+	v::Vector{T}
+	v_prev::Vector{T}
+	x::Vector{T}
 	s::SplitVector{T}
-	μ::SubArray
+	μ::Vector{T}
 
 	function Variables{T}(m::Int, n::Int, C::AbstractConvexSet{T}) where{T}
 		m == C.dim || throw(DimensionMismatch("set dimension is not m"))
-		xdr = zeros(T, n + 2 * m)
-		xdr_prev = zeros(T, n + 2 * m)
-		x = view(xdr, 1:n)
+		v = zeros(T, n +  m)
+		v_prev = zeros(T, n + m)
+		x = zeros(T, n)
 		s = SplitVector(zeros(T, m), C)
-		μ = view(xdr, n+m+1:n+m+m)
-		new(xdr, xdr_prev, x, s, μ)
+		μ = zeros(T, m)
+		new(v, v_prev, x, s, μ)
 	end
 end
 

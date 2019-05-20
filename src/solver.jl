@@ -1,63 +1,5 @@
 const LinsolveSubarray = SubArray{Float64,1,Vector{Float64},Tuple{UnitRange{Int64}},true}
 
-# function admm_step!(ws, iter, ν::LinsolveSubarray, x_tl::LinsolveSubarray, s_tl::Vector{Float64}, ls::Vector{Float64}, sol::Vector{Float64})
-
-# 	p_time = admm_step_A!(ws.vars.z, ws.vars.s, ws.vars.μ, ws.ρvec, ws.p.C)
-# 	if mod(iter, ws.settings.check_termination )  == 0
-# 		calculate_residuals!(ws)
-# 	end
-
-
-
-# 	# adapt rhoVec if enabled
-# 	if ws.settings.adaptive_rho && (mod(iter, ws.settings.adaptive_rho_interval + 1) == 0) && (ws.settings.adaptive_rho_interval + 1 > 0)
-# 		adapt_rho_vec!(ws)
-# 	end
-
-# 	admm_step_B!(ws.vars.x, ws.vars.z, ws.vars.s, ws.vars.μ, ν, x_tl, s_tl, ls, sol, ws.F, ws.p.q, ws.p.b, ws.ρvec, ws.settings.alpha, ws.settings.sigma, ws.p.n)
-
-# 	return p_time
-# end
-
-
-# function admm_step_A!(z::SubArray, s::SplitVector{Float64}, μ::Vector{Float64}, ρ::Vector{Float64},set::CompositeConvexSet{Float64})
-# 	# Project onto cone
-# 	@. s = z
-# 	p_time = @elapsed project!(s, set)
-
-# 	# update dual variable μ
-# 	@. μ = ρ .* (z - s)
-# 	return p_time
-# 	end
-
-# function admm_step_B!(x::SubArray,
-# 	z::SubArray,
-# 	s::SplitVector{Float64},
-# 	μ::Vector{Float64},
-# 	ν::LinsolveSubarray,
-# 	x_tl::LinsolveSubarray,
-# 	s_tl::Vector{Float64},
-# 	ls::Vector{Float64},
-# 	sol::Vector{Float64},
-# 	F,
-# 	q::Vector{Float64},
-# 	b::Vector{Float64},
-# 	ρ::Vector{Float64},
-# 	α::Float64,
-# 	σ::Float64,
-# 	n::Int64)
-
-# 	@. ls[1:n] = σ * x - q
-# 	@. ls[(n + 1):end] = b - s + μ / ρ
-# 	sol .= F \ ls
-# 	@. s_tl = s - (ν + μ) / ρ
-
-# 	# Over relaxation
-# 	@. x = α * x_tl + (1.0 - α) * x
-# 	@. s_tl = α * s_tl + (1.0 - α) * s
-# 	@. z = s_tl + μ / ρ
-# end
-
 function admm_step!(x::Vector{Float64},
 	s::SplitVector{Float64},
 	μ::Vector{Float64},
@@ -96,13 +38,13 @@ function admm_step!(x::Vector{Float64},
 	# Project onto cone
 	p_time = @elapsed project!(s, set)
 
+	# recover original dual variable for conic constraints
+	@. μ = ρ * (s - v2)
 
 	# update dual variable v
 	@. v[1:n] = v[1:n] + 2 * α .* ( x - x_tl)
 	@. v[n+1:n+m] = v[n+1:n+m] + 2 * α .* ( s - s_tl)
 
-	# update original dual variable for s
-	@. μ = ρ* (s - v2 )
 
 
 	return p_time
@@ -268,7 +210,7 @@ function optimize!(ws::COSMO.Workspace)
 		aa_fail = ws.accelerator.fail_counter
 	end
 
-	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times), [1. 1.], sum(aa_fail)#, , ws, aa_fail
+	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times)#, [1. 1.], sum(aa_fail)#, , ws, aa_fail
 
 end
 

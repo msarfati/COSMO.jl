@@ -181,22 +181,28 @@ mutable struct IterateHistory
 	x_data::AbstractMatrix
 	s_data::AbstractMatrix
 	y_data::AbstractMatrix
-	xdr_data::AbstractMatrix
+	v_data::AbstractMatrix
 	r_prim_data::AbstractVector
 	r_dual_data::AbstractVector
+	eta_data::AbstractArray
+	alpha_data::AbstractArray
 
 	function IterateHistory(m, n)
-		new(zeros(n, 0), zeros(m, 0), zeros(m, 0), zeros(2 * m + n, 0), Float64[], Float64[])
+		new(zeros(n, 0), zeros(m, 0), zeros(m, 0), zeros(m + n, 0), Float64[], Float64[], zeros(10, 0), zeros(11, 0))
 	end
 end
 
-function update_iterate_history!(history::IterateHistory, x, s, y, xdr, r_prim, r_dual)
+function update_iterate_history!(history::IterateHistory, x, s, y, v, r_prim, r_dual, eta::Vector{Float64})
 	history.x_data = hcat(history.x_data, x)
 	history.s_data = hcat(history.s_data, s)
 	history.y_data = hcat(history.y_data, y)
-	history.xdr_data = hcat(history.xdr_data, xdr)
+	history.v_data = hcat(history.v_data, v)
 	push!(history.r_prim_data, r_prim)
 	push!(history.r_dual_data, r_dual)
+
+	alphas = compute_alphas(eta)
+	history.alpha_data = hcat(history.alpha_data, alphas)
+
 
 end
 

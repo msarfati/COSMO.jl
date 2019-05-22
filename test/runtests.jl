@@ -18,6 +18,6 @@ include("./UnitTests/COSMOTestUtils.jl")
   include("./UnitTests/algebra.jl")
   include("./UnitTests/splitvector.jl")
   include("./UnitTests/interface.jl")
-  include("./UnitTests/moi_wrapper.jl")
+  # include("./UnitTests/moi_wrapper.jl")
 end
 nothing

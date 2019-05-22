@@ -4,6 +4,7 @@ abstract type AbstractAccelerator{T <: Real}  end
 
 mutable struct AndersonAccelerator{T} <: AbstractAccelerator{T}
   is_type1::Bool
+  init_phase::Bool
   mem::Int64
   dim::Int64
   iter::Int64
@@ -19,13 +20,13 @@ mutable struct AndersonAccelerator{T} <: AbstractAccelerator{T}
   M::AbstractMatrix{T}
 
   function AndersonAccelerator{T}() where {T <: Real}
-    new(true, 0, 0, 0, 0, zeros(T, 1), zeros(T, 1), zeros(T, 1),  zeros(T, 1), zeros(T, 1), zeros(T, 1, 1), zeros(T, 1, 1), zeros(T, 1, 1), zeros(T, 1, 1))
+    new(true, true, 0, 0, 0, 0, zeros(T, 1), zeros(T, 1), zeros(T, 1),  zeros(T, 1), zeros(T, 1), zeros(T, 1, 1), zeros(T, 1, 1), zeros(T, 1, 1), zeros(T, 1, 1))
   end
 
-  function AndersonAccelerator{T}(dim::Int64; mem::Int64 = 10, is_type1::Bool = true) where {T <: Real}
+  function AndersonAccelerator{T}(dim::Int64; mem::Int64 = 6, is_type1::Bool = true) where {T <: Real}
     mem <= 0 && throw(DomainError(mem, "Memory has to be a positive integer."))
     dim <= 0 && throw(DomainError(dim, "Dimension has to be a positive integer."))
-    new(is_type1, mem, dim, 0, 0, zeros(T,dim), zeros(T, dim), zeros(T, dim),  zeros(T, dim), zeros(T, mem), zeros(T, dim, mem), zeros(T, dim, mem), zeros(T, dim, mem), zeros(T, mem, mem))
+    new(is_type1, true, mem, dim, 0, 0, zeros(T,dim), zeros(T, dim), zeros(T, dim),  zeros(T, dim), zeros(T, mem), zeros(T, dim, mem), zeros(T, dim, mem), zeros(T, dim, mem), zeros(T, mem, mem))
   end
 
 end
@@ -42,9 +43,30 @@ function empty_history!(aa::AndersonAccelerator{T}) where {T <: Real}
   aa.eta .= 0;
 
   aa.iter = 0
+  aa.init_phase = true
 end
 
+
+function compute_alphas(eta::Vector{T}) where {T <: Real}
+  n = length(eta)
+  alpha = zeros(T, n+1)
+  alpha[1] = eta[1]
+  for i = 2:n
+    alpha[i] = eta[i] - eta[i-1]
+  end
+  alpha[n + 1] = 1 - eta[n]
+  return alpha
+end
+
+
 function update_history!(aa::AbstractAccelerator{T}, g::AbstractVector{T}, x::AbstractVector{T}) where {T <: Real}
+  if aa.init_phase
+    @. aa.x_last = x
+    @. aa.g_last = g
+    @. aa.f_last = x - g
+    aa.init_phase = false
+    return nothing
+  end
   j = (aa.iter % aa.mem) + 1
 
   # compute residual
@@ -82,33 +104,38 @@ end
 
 function accelerate!(g::AbstractVector{T}, x::AbstractVector{T}, aa::AndersonAccelerator{T}) where {T <: Real}
   l = min(aa.iter, aa.mem)
-  l == 1 && return true
+  l < 2 && return true
 
+  # aa.iter > 100 && return true
   if l < aa.mem
     eta = view(aa.eta, 1:l)
     X = view(aa.X, :, 1:l)
     M = view(aa.M, 1:l, 1:l)
     G = view(aa.G, :, 1:l)
+    F = view(aa.F, :, 1:l)
   else
     eta = aa.eta
     X = aa.X
     M = aa.M
     G = aa.G
+    F = aa.F
   end
 
   if aa.is_type1
     eta[:] = X' * aa.f
   else
-    aa.eta[:] = aa.F' * aa.f
+    eta[:] = F' * aa.f
   end
   # aa.eta = aa.M  \ (X' * f) (type1)
   info = _gesv!(M, eta)
 
-  if (info < 0 || norm(aa.eta, 2) > 1e4)
+  if (info < 0 || norm(eta, 2) > 1e4)
     #@warn("Acceleration failed at aa.iter: $(aa.iter)")
     aa.fail_counter += 1
     return false
   else
+         # @show(eta)
+
      g[:] = g - G * eta
     return true
   end

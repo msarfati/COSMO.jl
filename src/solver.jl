@@ -17,25 +17,24 @@ function admm_step!(x::Vector{Float64},
 	σ::Float64,
 	m::Int64,
 	n::Int64,
-	set::CompositeConvexSet{Float64})
+	set::CompositeConvexSet{Float64}, v1::SubArray, v2::SubArray)
 
 	# linear solve
 	# Create right hand side for linear system
 	# deconstructed solution vector is ls = [x_tl(n+1); ν(n+1)]
 	# x_tl and ν are automatically updated, since they are views on sol
 	# ρ  = 0.1
-	v1 = view(v, 1:n)
-	v2 = view(v, n+1:n+m)
+
 	@. ls[1:n] = σ * v1 - q # or can it be ρ?????
 	@. ls[(n + 1):end] = b - v2
 	sol .= F \ ls
 
-	# Over relaxattion
+	# Over relaxation
 	@. x = 2 * x_tl - v1
 	@. s_tl = v2 - ν / ρ
-	@. s = 2 * s_tl - v2
 
 	# Project onto cone
+	@. s = 2 * s_tl - v2
 	p_time = @elapsed project!(s, set)
 
 	# recover original dual variable for conic constraints
@@ -82,9 +81,9 @@ function optimize!(ws::COSMO.Workspace)
 	settings.verbose && print_header(ws)
 	time_limit_start = time()
 
-	# iter_history = IterateHistory(ws.p.m ,ws.p.n)
+ 	# iter_history = IterateHistory(ws.p.m ,ws.p.n)
 
-	# update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.xdr, ws.r_prim, ws.r_dual)
+	# update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.v, ws.r_prim, ws.r_dual, zeros(10))
 
 	#preallocate arrays
 	m = ws.p.m
@@ -97,14 +96,15 @@ function optimize!(ws::COSMO.Workspace)
 	sol = zeros(n + m)
 	x_tl = view(sol, 1:n) # i.e. xTilde
 	ν = view(sol, (n + 1):(n + m))
-
+	v1 = view(ws.vars.v, 1:n)
+	v2 = view(ws.vars.v, n+1:n+m)
 	settings.verbose_timing && (iter_start = time())
 
 	for iter = 1:settings.max_iter
 
 		num_iter += 1
 
-		if num_iter > 2
+		if num_iter > 1 && num_iter < 300
 			COSMO.update_history!(ws.accelerator, ws.vars.v, ws.vars.v_prev)
 			COSMO.accelerate!(ws.vars.v, ws.vars.v_prev, ws.accelerator)
 		end
@@ -119,17 +119,28 @@ function optimize!(ws::COSMO.Workspace)
 			x_tl, s_tl, ls, sol,
 			ws.F, ws.p.q, ws.p.b, ws.ρvec,
 			settings.alpha, settings.sigma,
-			m, n, ws.p.C);
+			m, n, ws.p.C, v1, v2);
 		# compute deltas for infeasibility detection
 		@. δx = ws.vars.x - δx
 		@. δy = -ws.vars.μ + δy
 
-
+		# @show(ws.vars.v)
+		# @show(ws.vars.s.data)
 		if mod(iter, ws.settings.check_termination )  == 0
 			calculate_residuals!(ws)
 		end
 
-		# update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.xdr, ws.r_prim, ws.r_dual)
+		# eta = zeros(10)
+		# if ws.settings.accelerator == :empty
+		# 	eta = zeros(10)
+		# else
+		# 	eta = ws.accelerator.eta
+		# 	ne = length(eta)
+		# 	if ne < 10
+		# 		eta = [eta; zeros(10-ne)]
+		# 	end
+		# end
+		# update_iterate_history!(iter_history, ws.vars.x, ws.vars.s, -ws.vars.μ, ws.vars.v, ws.r_prim, ws.r_dual, eta)
 
 		# check convergence with residuals every {settings.checkIteration} steps
 		if mod(iter, settings.check_termination) == 0
@@ -210,7 +221,7 @@ function optimize!(ws::COSMO.Workspace)
 		aa_fail = ws.accelerator.fail_counter
 	end
 
-	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times)#, [1. 1.], sum(aa_fail)#, , ws, aa_fail
+	return Result{Float64}(ws.vars.x, y, ws.vars.s.data, cost, num_iter, status, res_info, ws.times), [ws.r_prim;ws.r_dual], 0
 
 end
 
